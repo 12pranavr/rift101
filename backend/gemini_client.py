@@ -27,7 +27,7 @@ client = OpenAI(
     timeout=60.0,
 )
 
-MODEL = "qwen/qwen3-coder-next"
+MODEL = "qwen/qwen-2.5-coder-32b-instruct"
 
 # ---------------------------------------------------------------------------
 # Retry config
