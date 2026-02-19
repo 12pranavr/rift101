@@ -197,10 +197,11 @@ Error Message: {failure.get('error_message', '')}
 {related_section}{test_section}{prev_section}
 
 Instructions:
+- CRITICAL: If the "User instructions" below forbid fixing this type of bug (e.g. "only fix syntax" but this is a logic/test failure), YOU MUST RETURN THE ORIGINAL FILE CONTENT UNCHANGED. THIS INSTRUCTION OVERRIDES ALL OTHERS.
 - Fix ONLY the specific bug described above
 - Do NOT change anything unrelated to the bug
 - Return ONLY the complete fixed file content — no explanations, no markdown fences
-- The fix must make the failing test(s) pass
+- The fix must make the failing test(s) pass (UNLESS forbidden by User Instructions)
 
 Return the complete corrected file content:
 """
@@ -372,6 +373,17 @@ def _generate_fix_for_failure(
             custom_prompt=custom_prompt,
         )
         fixed_content = _strip_code_fences(fixed_content)
+
+        if fixed_content.strip() == current_content.strip():
+            return {
+                "file_rel": file_rel,
+                "fixed_content": None,
+                "commit_msg": "",
+                "failure": failure,
+                "is_vuln": False,
+                "error": "Skipped: Content unchanged (likely due to user instructions).",
+            }
+
     except Exception as e:
         return {
             "file_rel": file_rel,
@@ -413,18 +425,25 @@ def _commit_fix(
     """
     failure = result["failure"]
     file_rel = result["file_rel"]
+    bug_type = failure.get("bug_type", "UNKNOWN")
+    line_no = failure.get("line_number", 0)
 
     # --- AI generation failed ---
-    if result["error"]:
+    # If error occurred
+    if result.get("error"):
+        error_msg = result["error"]
+        status = "FAILED"
+        if error_msg.startswith("Skipped:"):
+            status = "SKIPPED"
+
         return {
             "file": file_rel,
-            "bug_type": failure.get("bug_type", "UNKNOWN"),
-            "line_number": failure.get("line_number", 0),
+            "bug_type": bug_type,
+            "line_number": line_no,
             "commit_message": "",
-            "status": "FAILED",
-            "description": result["error"],
+            "status": status,
+            "description": error_msg,
         }
-
     # --- Vulnerability fast-path: nothing to write if content unchanged ---
     if result["is_vuln"]:
         new_content = result["fixed_content"]

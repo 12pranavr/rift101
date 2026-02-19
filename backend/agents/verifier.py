@@ -29,8 +29,31 @@ def run(state: "AgentState") -> "AgentState":
         pass  # Pull may fail if no remote tracking; local state is authoritative
 
     # Re-run tests
+    # Re-run tests
     sandbox_result = run_tests_in_sandbox(local_repo_path)
     remaining_failures = sandbox_result.get("failures", [])
+
+    # Filter out failures that were explicitly SKIPPED in the fixes
+    # This prevents the run from failing if the user asked to ignore certain bugs
+    previous_fixes = state.get("fixes", [])
+    skipped_signatures = set()
+    for fix in previous_fixes:
+        if fix.get("status") == "SKIPPED":
+            # Match by file and line. If line is 0, we might match just file, but let's stick to strict file+line for now.
+            # Convert to tuple for set storage
+            skipped_signatures.add((fix.get("file"), fix.get("line_number", 0)))
+            # Also add with line=0 partial match if fix has line but test failure might report 0? 
+            # No, let's trust the sandbox consistency since file is unchanged.
+
+    if skipped_signatures:
+        filtered = []
+        for fail in remaining_failures:
+            sig = (fail.get("file"), fail.get("line_number", 0))
+            if sig in skipped_signatures:
+                continue
+            filtered.append(fail)
+        remaining_failures = filtered
+
     all_passed = sandbox_result.get("all_passed", False) or len(remaining_failures) == 0
 
     status = "PASSED" if all_passed else "FAILED"

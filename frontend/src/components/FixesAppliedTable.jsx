@@ -10,8 +10,13 @@ const BUG_COLORS = {
 export default function FixesAppliedTable({ fixes }) {
     if (!fixes || fixes.length === 0) return null
 
-    const fixedCount = fixes.filter(f => f.status === 'FIXED').length
-    const failedCount = fixes.length - fixedCount
+    // Filter out SKIPPED items (ignored by skill) so they don't clutter the UI
+    const visibleFixes = fixes.filter(f => f.status !== 'SKIPPED')
+
+    if (visibleFixes.length === 0) return null
+
+    const fixedCount = visibleFixes.filter(f => f.status === 'FIXED').length
+    const failedCount = visibleFixes.length - fixedCount
 
     return (
         <div className="panel animate-slide-up">
@@ -49,7 +54,7 @@ export default function FixesAppliedTable({ fixes }) {
                         </tr>
                     </thead>
                     <tbody>
-                        {fixes.map((fix, i) => {
+                        {visibleFixes.map((fix, i) => {
                             const c = BUG_COLORS[fix.bug_type] || BUG_COLORS.LOGIC
                             const isFix = fix.status === 'FIXED'
                             return (

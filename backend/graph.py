@@ -190,7 +190,7 @@ async def run_agent_graph(payload: dict, run_id: str, runs: dict) -> dict:
         "start_time": start_dt.isoformat(),
         "end_time": end_dt.isoformat(),
         "total_time_seconds": total_time_seconds,
-        "total_failures_detected": len(all_failures) + len(all_fixes),
+        "total_failures_detected": len(all_failures) + len([f for f in all_fixes if f.get("status") != "SKIPPED"]),
         "total_fixes_applied": len([f for f in all_fixes if f.get("status") == "FIXED"]),
         "final_status": final_state.get("final_status", "FAILED"),
         "score": score,

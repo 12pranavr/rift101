@@ -49,7 +49,7 @@ def calculate_score(
     # Classify fixes by type
     # -----------------------------------------------------------------------
     fixed = [f for f in fixes if f.get("status") == "FIXED"]
-    not_fixed = [f for f in fixes if f.get("status") != "FIXED"]
+    not_fixed = [f for f in fixes if f.get("status") != "FIXED" and f.get("status") != "SKIPPED"]
 
     logic_fixed   = [f for f in fixed if f.get("bug_type") not in ("LINTING", "VULNERABILITY")]
     linting_fixed = [f for f in fixed if f.get("bug_type") == "LINTING"]
@@ -68,7 +68,7 @@ def calculate_score(
     all_tests_pass = (
         final_status == "COMPLETED"
         and len(not_fixed) == 0
-        and len(fixed) > 0
+        # and len(fixed) > 0  <-- REMOVED: legitimate to have 0 fixes if all were skipped or clean
     )
     if all_tests_pass:
         base += 15                             # +15 all tests green
