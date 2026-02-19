@@ -213,7 +213,7 @@ export default function InputSection() {
                     <Field
                         id="team-name"
                         label="TEAM NAME"
-                        placeholder="e.g. RIFT ORGANISERS"
+                        placeholder="e.g. JARVIS"
                         value={teamName}
                         onChange={v => setInput('teamName', v)}
                         disabled={isRunning}
@@ -221,7 +221,7 @@ export default function InputSection() {
                     <Field
                         id="leader-name"
                         label="TEAM LEADER"
-                        placeholder="e.g. Saiyam Kumar"
+                        placeholder="e.g. Pranav"
                         value={leaderName}
                         onChange={v => setInput('leaderName', v)}
                         disabled={isRunning}
