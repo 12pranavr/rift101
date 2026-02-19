@@ -104,6 +104,124 @@ GitHub: AI_Fix Branch + Pull Request auto-created
 
 ---
 
+## ✨ Extended Features
+
+### 🧠 Memory System
+
+The agent remembers every run on a repository and uses that knowledge to avoid repeating failed fix attempts.
+
+```
+First Run on repo/X
+       │
+       ▼
+  Agent fixes bugs → results stored in browser memory
+  { repo_url, fixes_attempted, files_failed, timestamp }
+
+Second Run on same repo/X
+       │
+       ▼
+  🧠 MEMORY FOUND banner shown in dashboard
+       │
+  User toggles "USE MEMORY" switch ON
+       │
+       ▼
+  Fixer Agent receives memory context:
+  "Previous attempt: tried removing import on line 15 — still failed.
+   Do NOT repeat this fix."
+       │
+       ▼
+  AI generates a DIFFERENT, smarter fix
+```
+
+**How it works:**
+- After every run, results are saved in browser `localStorage` keyed by repo URL
+- On the next run for the same URL, a **🧠 MEMORY FOUND** banner appears automatically
+- When enabled, the memory context is sent to the AI as additional prompt context
+- The Fixer Agent uses it to avoid repeating strategies that already failed
+- Tracks: number of previous runs, which files failed, what fixes were attempted
+
+---
+
+### ⚡ Skills System
+
+Skills are pre-defined fix strategies that override the AI's default behavior for specific use cases.
+
+```
+User opens dashboard
+       │
+       ▼
+  Advanced Configuration → SKILL dropdown
+       │
+  ┌────────────────────────────────────┐
+  │  Available Skills:                 │
+  │  [SECURITY]  Dependency Audit      │
+  │  [STYLE]     PEP8 Auto-Format      │
+  │  [TYPES]     Add Type Hints        │
+  │  [DOCS]      Generate Docstrings   │
+  │  [CUSTOM]    User-defined skill    │
+  └────────────────────────────────────┘
+       │
+  User selects a skill → skill instructions
+  override the custom prompt field
+       │
+       ▼
+  Fixer Agent uses skill instructions
+  as the primary fix directive for
+  ALL bugs in this run
+```
+
+**How it works:**
+- Skills are stored in browser `localStorage` as JSON (name, tag, instructions)
+- Users can create, edit, and delete skills via the **⚙ MANAGE SKILLS** panel
+- When a skill is active, its instructions replace the custom prompt entirely
+- Built-in skill tags: `SECURITY`, `STYLE`, `TYPES`, `DOCS`, `PERF`, `CUSTOM`
+- The active skill is shown as a preview card in the input section
+
+---
+
+### ⏰ Scheduler
+
+Automatically run the agent on a repository on a recurring schedule — no manual triggering needed.
+
+```
+User configures schedule in dashboard
+       │
+       ▼
+  ┌─────────────────────────────────────┐
+  │  Schedule Options:                  │
+  │  • Run Once (immediate)             │
+  │  • Daily  → pick time (e.g. 02:00) │
+  │  • Weekly → pick day + time         │
+  └─────────────────────────────────────┘
+       │
+  Click "⏰ SCHEDULE AGENT"
+       │
+       ▼
+  Backend saves schedule to schedules.json
+  APScheduler registers the job
+       │
+       ▼ (at scheduled time)
+  Agent runs automatically
+  → Clone → Analyze → Fix → Verify → PR
+       │
+       ▼
+  Results available in dashboard
+  Scheduled Runs section shows status
+
+  Server restart? → schedules.json
+  restores all jobs automatically
+```
+
+**How it works:**
+- Built on **APScheduler** — jobs are persisted to `schedules.json` on disk
+- Survives server restarts (schedules auto-restored on startup)
+- Each scheduled run creates a new `run_id` and stores results like a normal run
+- Manage active schedules via the dashboard's **Scheduled Runs** section
+- Cancel any schedule with one click (calls `DELETE /api/schedules/{id}`)
+
+---
+
+
 ## 📊 React Dashboard
 
 | Section | Details |
