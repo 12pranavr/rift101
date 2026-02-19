@@ -81,13 +81,22 @@ def commit_file(repo: git.Repo, file_path: str, commit_msg: str) -> None:
 
 def push_branch(repo: git.Repo, repo_url: str, branch_name: str) -> None:
     """
-    Push branch to origin (force push so re-runs overwrite the old branch).
-    The remote URL is updated with the GitHub token before pushing
-    so this works both locally and on Railway.
+    Push branch to origin using --no-thin to avoid GitHub's
+    'remote unpack failed: index-pack failed' server-side error.
+
+    That error is triggered when git sends a thin-pack delta that the
+    GitHub server cannot reconstruct. Passing --no-thin forces git to
+    send a full pack instead.
     """
     auth_url = _auth_url(repo_url)
     origin = repo.remotes.origin
     origin.set_url(auth_url)
-    # Use + prefix on refspec = force push; handles re-runs where branch already exists
-    origin.push(refspec=f"+{branch_name}:{branch_name}", force=True)
-
+    # Use low-level git command so we can pass --no-thin.
+    # GitPython's high-level origin.push() doesn't expose this flag and
+    # GitHub rejects thin packs with "remote unpack failed: index-pack failed".
+    repo.git.push(
+        auth_url,
+        f"+{branch_name}:{branch_name}",
+        "--no-thin",
+        "--force",
+    )

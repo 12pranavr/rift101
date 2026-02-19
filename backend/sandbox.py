@@ -35,6 +35,58 @@ def run_tests_in_sandbox(repo_path: str, test_files: list = None) -> dict:
     return _run_subprocess(repo_path, test_files or [])
 
 
+def run_all_language_tests(
+    repo_path: str,
+    detected_languages: list[str],
+    test_files: list = None,
+) -> dict:
+    """
+    Run the appropriate test suite per detected language and merge results.
+    Returns the same {passed, total, failures, all_passed} dict shape as
+    run_tests_in_sandbox() so all downstream code is compatible.
+    """
+    merged = {
+        "passed": 0,
+        "total": 0,
+        "failures": [],
+        "all_passed": True,
+        "raw_stdout": "",
+        "raw_stderr": "",
+    }
+
+    runners = []
+    if "python" in detected_languages:
+        runners.append(("python", run_tests_in_sandbox, repo_path, test_files))
+    if "javascript" in detected_languages:
+        runners.append(("javascript", _run_js_tests, repo_path, None))
+    if "ruby" in detected_languages:
+        runners.append(("ruby", _run_ruby_tests, repo_path, None))
+    if "go" in detected_languages:
+        runners.append(("go", _run_go_tests, repo_path, None))
+    if "java" in detected_languages:
+        runners.append(("java", _run_java_tests, repo_path, None))
+
+    # If no specific language detected (or only python), fall back to default
+    if not runners:
+        return run_tests_in_sandbox(repo_path, test_files or [])
+
+    for lang, runner_fn, rpath, tfiles in runners:
+        print(f"[sandbox] Running {lang} tests in {os.path.basename(rpath)}…")
+        try:
+            result = runner_fn(rpath, tfiles) if tfiles is not None else runner_fn(rpath)
+        except Exception as exc:
+            print(f"[sandbox] {lang} test runner error: {exc}")
+            continue
+        merged["passed"] += result.get("passed", 0)
+        merged["total"] += result.get("total", 0)
+        merged["failures"].extend(result.get("failures", []))
+        merged["raw_stdout"] += result.get("raw_stdout", "")
+        merged["raw_stderr"] += result.get("raw_stderr", "")
+
+    merged["all_passed"] = len(merged["failures"]) == 0
+    return merged
+
+
 # ---------------------------------------------------------------------------
 # Docker mode (local dev)
 # ---------------------------------------------------------------------------
@@ -235,3 +287,191 @@ def _read_file_safe(path: str) -> str:
             return f.read()
     except Exception:
         return ""
+
+
+# ---------------------------------------------------------------------------
+# Per-language test runner helpers (called by run_all_language_tests)
+# ---------------------------------------------------------------------------
+
+def _empty_result(raw_stdout: str = "", raw_stderr: str = "") -> dict:
+    return {
+        "passed": 0, "total": 0,
+        "failures": [], "all_passed": True,
+        "raw_stdout": raw_stdout, "raw_stderr": raw_stderr,
+    }
+
+
+def _run_js_tests(repo_path: str) -> dict:
+    """Run npm test / npx vitest and return structured result."""
+    npm = shutil.which("npm") or shutil.which("npm.cmd")
+    if not npm or not os.path.exists(os.path.join(repo_path, "package.json")):
+        return _empty_result()
+
+    # Try npm test first
+    proc = subprocess.run(
+        [npm, "test", "--", "--reporter=json", "--passWithNoTests"],
+        cwd=repo_path, capture_output=True, text=True, timeout=SANDBOX_TIMEOUT,
+    )
+    # If that fails, fall back to vitest
+    if proc.returncode not in (0, 1):
+        npx = shutil.which("npx") or shutil.which("npx.cmd")
+        if npx:
+            proc = subprocess.run(
+                [npx, "vitest", "run", "--reporter=json"],
+                cwd=repo_path, capture_output=True, text=True,
+                timeout=SANDBOX_TIMEOUT,
+            )
+
+    failures = []
+    try:
+        data = json.loads(proc.stdout or "{}")
+        test_results = data.get("testResults", data.get("results", []))
+        passed = 0
+        total = 0
+        for suite in test_results:
+            for t in suite.get("assertionResults", suite.get("tests", [])):
+                total += 1
+                if t.get("status") in ("passed", "pass"):
+                    passed += 1
+                else:
+                    failures.append({
+                        "file": suite.get("testFilePath", "unknown.js"),
+                        "line_number": 0,
+                        "bug_type": "UNKNOWN",
+                        "error_message": " ".join(t.get("failureMessages", [t.get("name", "")])),
+                        "file_content": _read_file_safe(suite.get("testFilePath", "")),
+                    })
+        return {
+            "passed": passed, "total": total,
+            "failures": failures,
+            "all_passed": len(failures) == 0,
+            "raw_stdout": proc.stdout[-2000:],
+            "raw_stderr": proc.stderr[-500:],
+        }
+    except (json.JSONDecodeError, KeyError):
+        return _empty_result(proc.stdout[-2000:], proc.stderr[-500:])
+
+
+def _run_ruby_tests(repo_path: str) -> dict:
+    """Run RSpec via bundler and return structured result."""
+    bundle = shutil.which("bundle") or shutil.which("bundle.cmd")
+    if not bundle or not os.path.exists(os.path.join(repo_path, "Gemfile")):
+        return _empty_result()
+
+    proc = subprocess.run(
+        [bundle, "exec", "rspec", "--format", "json"],
+        cwd=repo_path, capture_output=True, text=True, timeout=SANDBOX_TIMEOUT,
+    )
+
+    failures = []
+    try:
+        data = json.loads(proc.stdout or "{}")
+        summary = data.get("summary", {})
+        passed = summary.get("example_count", 0) - summary.get("failure_count", 0)
+        total = summary.get("example_count", 0)
+        for ex in data.get("examples", []):
+            if ex.get("status") == "failed":
+                failures.append({
+                    "file": ex.get("file_path", "unknown.rb"),
+                    "line_number": ex.get("line_number", 0),
+                    "bug_type": "UNKNOWN",
+                    "error_message": ex.get("exception", {}).get("message", ""),
+                    "file_content": _read_file_safe(
+                        os.path.join(repo_path, ex.get("file_path", ""))
+                    ),
+                })
+        return {
+            "passed": passed, "total": total,
+            "failures": failures,
+            "all_passed": len(failures) == 0,
+            "raw_stdout": proc.stdout[-2000:],
+            "raw_stderr": proc.stderr[-500:],
+        }
+    except (json.JSONDecodeError, KeyError):
+        return _empty_result(proc.stdout[-2000:], proc.stderr[-500:])
+
+
+def _run_go_tests(repo_path: str) -> dict:
+    """Run `go test ./... -json` and return structured result."""
+    go_bin = shutil.which("go")
+    if not go_bin or not os.path.exists(os.path.join(repo_path, "go.mod")):
+        return _empty_result()
+
+    proc = subprocess.run(
+        [go_bin, "test", "./...", "-json"],
+        cwd=repo_path, capture_output=True, text=True, timeout=SANDBOX_TIMEOUT,
+    )
+
+    failures = []
+    passed = 0
+    total = 0
+    for line in proc.stdout.splitlines():
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        action = obj.get("Action")
+        if action == "pass":
+            passed += 1
+            total += 1
+        elif action == "fail":
+            total += 1
+            failures.append({
+                "file": obj.get("Package", "unknown.go"),
+                "line_number": 0,
+                "bug_type": "UNKNOWN",
+                "error_message": obj.get("Output", ""),
+                "file_content": "",
+            })
+
+    return {
+        "passed": passed, "total": total,
+        "failures": failures,
+        "all_passed": len(failures) == 0,
+        "raw_stdout": proc.stdout[-2000:],
+        "raw_stderr": proc.stderr[-500:],
+    }
+
+
+def _run_java_tests(repo_path: str) -> dict:
+    """Run Maven or Gradle tests and return structured result (best-effort)."""
+    mvn = shutil.which("mvn") or shutil.which("mvn.cmd")
+    gradle = shutil.which("gradle") or shutil.which("gradlew")
+
+    if mvn and os.path.exists(os.path.join(repo_path, "pom.xml")):
+        proc = subprocess.run(
+            [mvn, "test", "-q"],
+            cwd=repo_path, capture_output=True, text=True, timeout=SANDBOX_TIMEOUT * 2,
+        )
+    elif gradle and (
+        os.path.exists(os.path.join(repo_path, "build.gradle"))
+        or os.path.exists(os.path.join(repo_path, "build.gradle.kts"))
+    ):
+        proc = subprocess.run(
+            [gradle, "test"],
+            cwd=repo_path, capture_output=True, text=True, timeout=SANDBOX_TIMEOUT * 2,
+        )
+    else:
+        return _empty_result()
+
+    # Parse failures from stdout (Maven / Gradle don't have easy JSON output in basic mode)
+    failures = []
+    for line in proc.stdout.splitlines() + proc.stderr.splitlines():
+        if "FAILED" in line or "BUILD FAILURE" in line:
+            failures.append({
+                "file": "unknown.java",
+                "line_number": 0,
+                "bug_type": "UNKNOWN",
+                "error_message": line.strip(),
+                "file_content": "",
+            })
+
+    success = proc.returncode == 0
+    return {
+        "passed": 0 if not success else 1,
+        "total": max(1, len(failures)),
+        "failures": failures,
+        "all_passed": success,
+        "raw_stdout": proc.stdout[-2000:],
+        "raw_stderr": proc.stderr[-500:],
+    }

@@ -8,6 +8,7 @@ import RunSummaryCard from './components/RunSummaryCard'
 import ScoreBreakdownPanel from './components/ScoreBreakdownPanel'
 import FixesAppliedTable from './components/FixesAppliedTable'
 import CICDTimeline from './components/CICDTimeline'
+import ScheduledRunsPanel from './components/ScheduledRunsPanel'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const POLL_INTERVAL_MS = 2000
@@ -30,7 +31,7 @@ function Barcode({ bars = 18 }) {
 }
 
 export default function App() {
-  const { runId, status, errorMessage, results, setStatus, setProgress, setResults } = useAgentStore()
+  const { runId, status, errorMessage, results, nextRun, setStatus, setProgress, setResults } = useAgentStore()
   const pollCountRef = useRef(0)
 
   // ── Theme toggle ──────────────────────────────────────────────────────────
@@ -72,6 +73,7 @@ export default function App() {
   }, [runId, status])
 
   const hasResults = status === 'complete' && results
+  const isScheduled = status === 'scheduled'
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--black)', color: 'var(--white)' }}>
@@ -180,6 +182,31 @@ export default function App() {
         </div>
       )}
 
+      {/* ── Scheduled banner ──────────────────────────────────────────────── */}
+      {isScheduled && (
+        <div style={{
+          margin: '1rem 2rem 0',
+          padding: '1rem 1.25rem',
+          background: 'rgba(255,140,0,0.08)',
+          border: '1px solid rgba(255,140,0,0.4)',
+          borderLeft: '3px solid var(--orange)',
+        }} className="animate-fade-in">
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+            <span style={{ color: 'var(--orange)', fontFamily: 'var(--font-display)', fontSize: '1.2rem' }}>⏰</span>
+            <div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--orange)', fontWeight: 700 }}>
+                RUN SCHEDULED
+              </div>
+              {nextRun && (
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: '#ffb347', marginTop: '0.25rem' }}>
+                  Next run: {new Date(nextRun).toLocaleString()}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Main layout ───────────────────────────────────────────────────── */}
       <main style={{ padding: '1.5rem 2rem', maxWidth: '1400px', margin: '0 auto' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '1.25rem', alignItems: 'start' }}>
@@ -199,6 +226,8 @@ export default function App() {
                 <FixesAppliedTable fixes={results.fixes} />
                 <CICDTimeline timeline={results.cicd_timeline} maxRetries={results.cicd_timeline?.length || 5} />
               </>
+            ) : isScheduled ? (
+              <ScheduledRunsPanel />
             ) : (
               status === 'idle' && (
                 <div className="panel animate-fade-in" style={{ minHeight: '420px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2rem', textAlign: 'center' }}>

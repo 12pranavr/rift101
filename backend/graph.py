@@ -16,6 +16,7 @@ from langgraph.graph import StateGraph, END
 
 from agents import analyzer, fixer, verifier
 from scoring import calculate_score
+import pr_creator
 
 # ---------------------------------------------------------------------------
 # State schema
@@ -36,6 +37,13 @@ class AgentState(TypedDict):
     start_time: str
     run_id: str
     _run_store: Optional[dict]    # reference to in-memory runs dict for progress updates
+    # --- New fields for extended features ---
+    detected_languages: List[str]          # e.g. ["python", "javascript", "go"]
+    static_analysis_failures: List[dict]   # linter/type-checker findings
+    vulnerability_findings: List[dict]     # CVE details per dependency file
+    _fix_history: Optional[dict]           # {file_rel: last_generated_content} for retry context
+    custom_prompt: Optional[str]           # user-supplied fix instructions (optional)
+    ignore_rules: List[str]                # globs/prefixes to skip during analysis
 
 
 # ---------------------------------------------------------------------------
@@ -123,6 +131,13 @@ async def run_agent_graph(payload: dict, run_id: str, runs: dict) -> dict:
         "start_time": start_dt.isoformat(),
         "run_id": run_id,
         "_run_store": runs,
+        # Extended feature fields
+        "detected_languages": [],
+        "static_analysis_failures": [],
+        "vulnerability_findings": [],
+        "_fix_history": {},
+        "custom_prompt": payload.get("custom_prompt") or None,
+        "ignore_rules": payload.get("ignore_rules") or [],
     }
 
     # Run in thread executor so the async FastAPI loop isn't blocked
@@ -132,10 +147,39 @@ async def run_agent_graph(payload: dict, run_id: str, runs: dict) -> dict:
     )
 
     end_dt = datetime.now(timezone.utc)
+    total_time_seconds = int((end_dt - start_dt).total_seconds())
 
-    # Calculate score
-    total_commits = len(final_state.get("fixes", []))
-    score = calculate_score(start_dt, end_dt, total_commits)
+    # Calculate score based on actual results
+    all_fixes = final_state.get("fixes", [])
+    all_failures = final_state.get("failures", [])
+    final_status_val = final_state.get("final_status", "COMPLETED")
+
+    score = calculate_score(
+        start_dt, end_dt,
+        fixes=all_fixes,
+        failures=all_failures,
+        final_status=final_status_val,
+    )
+
+
+    # ---------------------------------------------------------------------------
+    # Auto-create GitHub Pull Request from AI_Fix branch → default branch
+    # ---------------------------------------------------------------------------
+    pr_url = None
+    if final_state.get("branch_name") and final_state.get("repo_url"):
+        try:
+            pr_url = pr_creator.create_pr(
+                repo_url=final_state["repo_url"],
+                branch_name=final_state["branch_name"],
+                fixes=all_fixes,
+                failures=all_failures,
+                score=score,
+                run_id=run_id,
+                total_time_seconds=total_time_seconds,
+            )
+        except Exception as pr_exc:
+            import logging as _log
+            _log.getLogger("graph").warning(f"PR creation failed (non-fatal): {pr_exc}")
 
     results = {
         "run_id": run_id,
@@ -145,12 +189,13 @@ async def run_agent_graph(payload: dict, run_id: str, runs: dict) -> dict:
         "branch_name": final_state["branch_name"],
         "start_time": start_dt.isoformat(),
         "end_time": end_dt.isoformat(),
-        "total_time_seconds": int((end_dt - start_dt).total_seconds()),
-        "total_failures_detected": len(final_state.get("failures", [])) + len(final_state.get("fixes", [])),
-        "total_fixes_applied": len([f for f in final_state.get("fixes", []) if f.get("status") == "FIXED"]),
+        "total_time_seconds": total_time_seconds,
+        "total_failures_detected": len(all_failures) + len(all_fixes),
+        "total_fixes_applied": len([f for f in all_fixes if f.get("status") == "FIXED"]),
         "final_status": final_state.get("final_status", "FAILED"),
         "score": score,
-        "fixes": final_state.get("fixes", []),
+        "pr_url": pr_url,
+        "fixes": all_fixes,
         "cicd_timeline": final_state.get("cicd_timeline", []),
     }
 

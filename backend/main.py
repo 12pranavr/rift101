@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from graph import run_agent_graph
+import scheduler as _scheduler_module
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("devops-agent")
@@ -20,6 +21,11 @@ logger = logging.getLogger("devops-agent")
 load_dotenv()
 
 app = FastAPI(title="Autonomous DevOps Agent API", version="1.0.0")
+
+@app.on_event("startup")
+def _start_scheduler():
+    """Start APScheduler and restore saved schedules."""
+    _scheduler_module.start_scheduler(run_agent_graph)
 
 # ---------------------------------------------------------------------------
 # CORS — allows local frontend + Vercel production deployment
@@ -116,6 +122,9 @@ class RunAgentRequest(BaseModel):
     repo_url: str
     team_name: str
     leader_name: str
+    custom_prompt: str | None = None       # optional — user-supplied fix instructions
+    ignore_rules: list[str] = []           # NEW — globs/prefixes to skip during analysis
+    schedule: dict | None = None           # NEW — {frequency, time, day} or None
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +138,22 @@ async def health():
 
 @app.post("/api/run-agent")
 async def run_agent(payload: RunAgentRequest, background_tasks: BackgroundTasks):
-    """Start an agent run in the background and return a run_id for polling."""
+    """Start an agent run in the background or save as a scheduled run."""
+    freq = (payload.schedule or {}).get("frequency", "once")
+
+    # ── Scheduled path ──────────────────────────────────────────────────────
+    if freq in ("daily", "weekly"):
+        entry = _scheduler_module.add_schedule(
+            payload=payload.dict(),
+            schedule=payload.schedule,
+        )
+        return {
+            "run_id": entry["schedule_id"],
+            "status": "scheduled",
+            "next_run": entry.get("next_run"),
+        }
+
+    # ── Immediate run path ───────────────────────────────────────────────────
     run_id = str(uuid.uuid4())
     runs[run_id] = {
         "status": "running",
@@ -161,6 +185,25 @@ async def get_results(run_id: str):
         raise HTTPException(status_code=404, detail="Results not ready yet")
     with open(results_path) as f:
         return json.load(f)
+
+
+# ---------------------------------------------------------------------------
+# Schedule management endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/schedules")
+async def get_schedules():
+    """List all active scheduled runs."""
+    return _scheduler_module.list_schedules()
+
+
+@app.delete("/api/schedules/{schedule_id}")
+async def delete_schedule(schedule_id: str):
+    """Cancel a scheduled run by ID."""
+    removed = _scheduler_module.cancel_schedule(schedule_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    return {"status": "cancelled", "schedule_id": schedule_id}
 
 
 # ---------------------------------------------------------------------------
