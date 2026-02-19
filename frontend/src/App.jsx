@@ -11,6 +11,7 @@ import ScoreBreakdownPanel from './components/ScoreBreakdownPanel'
 import FixesAppliedTable from './components/FixesAppliedTable'
 import CICDTimeline from './components/CICDTimeline'
 import ScheduledRunsPanel from './components/ScheduledRunsPanel'
+import UserManual from './components/UserManual'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const POLL_INTERVAL_MS = 2000
@@ -36,6 +37,7 @@ export default function App() {
   const { runId, status, errorMessage, results, nextRun, setStatus, setProgress, setResults } = useAgentStore()
   const pollCountRef = useRef(0)
   const [view, setView] = useState('agent') // 'agent' | 'memory'
+  const [manualOpen, setManualOpen] = useState(false)
 
   // ── Theme toggle ──────────────────────────────────────────────────────────
   const [theme, setTheme] = useState(() => localStorage.getItem('rift-theme') || 'dark')
@@ -121,6 +123,7 @@ export default function App() {
         <div style={{ display: 'flex', gap: '1rem' }}>
           <NavButton label="AGENT" active={view === 'agent'} onClick={() => setView('agent')} />
           <NavButton label="MEMORY" active={view === 'memory'} onClick={() => setView('memory')} icon="🧠" />
+          <NavButton label="MANUAL" active={false} onClick={() => setManualOpen(true)} icon="📖" />
         </div>
 
         {/* Right: status + theme toggle + barcode */}
@@ -297,6 +300,9 @@ export default function App() {
         </div>
         <Barcode bars={12} />
       </footer>
+
+      {/* User Manual Modal */}
+      {manualOpen && <UserManual onClose={() => setManualOpen(false)} />}
     </div>
   )
 }
