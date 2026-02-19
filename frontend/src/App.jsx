@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import useAgentStore from './store/agentStore'
+import { saveRunToMemory } from './utils/memory'
+import Memory from './pages/Memory'
 
 import InputSection from './components/InputSection'
 import ProgressBar from './components/ProgressBar'
@@ -33,6 +35,7 @@ function Barcode({ bars = 18 }) {
 export default function App() {
   const { runId, status, errorMessage, results, nextRun, setStatus, setProgress, setResults } = useAgentStore()
   const pollCountRef = useRef(0)
+  const [view, setView] = useState('agent') // 'agent' | 'memory'
 
   // ── Theme toggle ──────────────────────────────────────────────────────────
   const [theme, setTheme] = useState(() => localStorage.getItem('rift-theme') || 'dark')
@@ -61,6 +64,9 @@ export default function App() {
           setStatus('complete')
           const { data: resultsData } = await axios.get(`${API}/api/results/${runId}`)
           setResults(resultsData)
+          if (resultsData.repo_url) {
+            saveRunToMemory(resultsData.repo_url, resultsData)
+          }
         } else if (data.status === 'error') {
           clearInterval(poll)
           setStatus('error', data.error || data.current_step || 'Unknown error')
@@ -111,6 +117,12 @@ export default function App() {
           </div>
         </div>
 
+        {/* Center: Navigation */}
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <NavButton label="AGENT" active={view === 'agent'} onClick={() => setView('agent')} />
+          <NavButton label="MEMORY" active={view === 'memory'} onClick={() => setView('memory')} icon="🧠" />
+        </div>
+
         {/* Right: status + theme toggle + barcode */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <div style={{ textAlign: 'right' }}>
@@ -152,84 +164,66 @@ export default function App() {
       {/* ── Ticker ─────────────────────────────────────────────────────────── */}
       <div className="ticker-line" style={{ padding: '0.3rem 2rem' }}>
         <span style={{ opacity: 0.5, marginRight: '3rem' }}>
-          RIFT HACKATHON · AUTONOMOUS BUG DETECTION &amp; PATCH SYSTEM · POWERED BY GEMINI 2.0 &nbsp;&nbsp;&nbsp;&nbsp;
-          RIFT HACKATHON · AUTONOMOUS BUG DETECTION &amp; PATCH SYSTEM · POWERED BY GEMINI 2.0
+          RIFT HACKATHON · AUTONOMOUS BUG DETECTION & PATCH SYSTEM · POWERED BY TEAM JARVIS &nbsp;&nbsp;&nbsp;&nbsp;
+          RIFT HACKATHON · AUTONOMOUS BUG DETECTION & PATCH SYSTEM · POWERED BY TEAM JARVIS
         </span>
       </div>
 
-      {/* ── Error banner ──────────────────────────────────────────────────── */}
-      {status === 'error' && (
-        <div style={{
-          margin: '1rem 2rem 0',
-          padding: '1rem 1.25rem',
-          background: 'rgba(255,34,68,0.08)',
-          border: '1px solid rgba(255,34,68,0.3)',
-          borderLeft: '3px solid var(--red)',
-        }} className="animate-fade-in">
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-            <span style={{ color: 'var(--red)', fontFamily: 'var(--font-display)', fontSize: '1.2rem' }}>ERR</span>
-            <div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--red)', fontWeight: 700 }}>
-                AGENT ENCOUNTERED AN ERROR
-              </div>
-              {errorMessage && (
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: '#ff667a', marginTop: '0.35rem', wordBreak: 'break-all' }}>
-                  {errorMessage}
+      {view === 'memory' ? (
+        <Memory />
+      ) : (
+        <main style={{ padding: '1.5rem 2rem', maxWidth: '1400px', margin: '0 auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '1.25rem', alignItems: 'start' }}>
+
+            {/* LEFT column */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <InputSection />
+              {isScheduled && <ScheduledRunsPanel />}
+            </div>
+
+            {/* RIGHT column */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <ProgressBar />
+
+              {status === 'error' && (
+                <div style={{
+                  margin: '1rem 0 0',
+                  padding: '1rem 1.25rem',
+                  background: 'rgba(255,34,68,0.08)',
+                  border: '1px solid rgba(255,34,68,0.3)',
+                  borderLeft: '3px solid var(--red)',
+                }} className="animate-fade-in">
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                    <span style={{ color: 'var(--red)', fontFamily: 'var(--font-display)', fontSize: '1.2rem' }}>ERR</span>
+                    <div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--red)', fontWeight: 700 }}>
+                        AGENT ENCOUNTERED AN ERROR
+                      </div>
+                      {errorMessage && (
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: '#ff667a', marginTop: '0.35rem', wordBreak: 'break-all' }}>
+                          {errorMessage}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* ── Scheduled banner ──────────────────────────────────────────────── */}
-      {isScheduled && (
-        <div style={{
-          margin: '1rem 2rem 0',
-          padding: '1rem 1.25rem',
-          background: 'rgba(255,140,0,0.08)',
-          border: '1px solid rgba(255,140,0,0.4)',
-          borderLeft: '3px solid var(--orange)',
-        }} className="animate-fade-in">
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-            <span style={{ color: 'var(--orange)', fontFamily: 'var(--font-display)', fontSize: '1.2rem' }}>⏰</span>
-            <div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--orange)', fontWeight: 700 }}>
-                RUN SCHEDULED
-              </div>
-              {nextRun && (
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: '#ffb347', marginTop: '0.25rem' }}>
-                  Next run: {new Date(nextRun).toLocaleString()}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Main layout ───────────────────────────────────────────────────── */}
-      <main style={{ padding: '1.5rem 2rem', maxWidth: '1400px', margin: '0 auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '1.25rem', alignItems: 'start' }}>
-
-          {/* LEFT column */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <InputSection />
-            <ProgressBar />
-            {hasResults && <ScoreBreakdownPanel score={results.score} />}
-          </div>
-
-          {/* RIGHT column */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            {hasResults ? (
-              <>
-                <RunSummaryCard results={results} />
-                <FixesAppliedTable fixes={results.fixes} />
-                <CICDTimeline timeline={results.cicd_timeline} maxRetries={results.cicd_timeline?.length || 5} />
-              </>
-            ) : isScheduled ? (
-              <ScheduledRunsPanel />
-            ) : (
-              status === 'idle' && (
+              {hasResults ? (
+                <>
+                  <RunSummaryCard results={results} />
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: '2.5fr 1fr',
+                    gap: '1.5rem', marginTop: '1.5rem'
+                  }}>
+                    <FixesAppliedTable fixes={results.fixes} />
+                    <ScoreBreakdownPanel score={results.score} />
+                  </div>
+                  <div style={{ marginTop: '1.5rem' }}>
+                    <CICDTimeline />
+                  </div>
+                </>
+              ) : status === 'idle' && !isScheduled ? (
                 <div className="panel animate-fade-in" style={{ minHeight: '420px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2rem', textAlign: 'center' }}>
                   <div className="scan-overlay" />
 
@@ -279,14 +273,13 @@ export default function App() {
                     ))}
                   </div>
                 </div>
-              )
-            )}
+              ) : null}
+            </div>
           </div>
+        </main>
+      )}
 
-        </div>
-      </main>
-
-      {/* ── Footer ───────────────────────────────────────────────────────── */}
+      {/* ── Footer ─────────────────────────────────────────────────────────── */}
       <footer style={{
         borderTop: '1px solid var(--gray-border)',
         padding: '0.6rem 2rem',
@@ -305,5 +298,31 @@ export default function App() {
         <Barcode bars={12} />
       </footer>
     </div>
+  )
+}
+
+function NavButton({ label, active, onClick, icon }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: 'none',
+        border: 'none',
+        borderBottom: active ? '2px solid var(--orange)' : '2px solid transparent',
+        padding: '0.5rem 0.2rem',
+        color: active ? 'var(--white)' : 'var(--gray-text)',
+        fontFamily: 'var(--font-display)',
+        fontSize: '0.85rem',
+        letterSpacing: '0.05em',
+        cursor: 'pointer',
+        transition: 'all 0.2s',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.4rem',
+      }}
+    >
+      {icon && <span>{icon}</span>}
+      {label}
+    </button>
   )
 }

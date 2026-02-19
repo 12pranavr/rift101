@@ -145,6 +145,7 @@ def generate_fix(
     context: dict | None = None,
     previous_attempt: str | None = None,
     custom_prompt: str | None = None,
+    memory_context: str | None = None,
 ) -> str:
     """
     Call AI for a complete corrected file.
@@ -185,6 +186,16 @@ def generate_fix(
             f"\n\nUser instructions (MUST be followed): {custom_prompt.strip()}"
         )
 
+    # Memory context (previous runs)
+    memory_section = ""
+    if memory_context and memory_context.strip():
+        memory_section = (
+            f"\n\n--- MEMORY OF PAST RUNS ---\n"
+            f"Previous runs on this repo have shown the following patterns:\n"
+            f"{memory_context}\n"
+            f"Use this as reference. Avoid repeating fixes that have already been applied."
+        )
+
     prompt = f"""You are an expert software developer. Fix the following bug precisely.{custom_section}
 
 Bug Type: {failure['bug_type']}
@@ -194,12 +205,13 @@ Error Message: {failure.get('error_message', '')}
 
 --- Current file content ---
 {full_file_content}
-{related_section}{test_section}{prev_section}
+{related_section}{test_section}{prev_section}{memory_section}
 
 Instructions:
-- CRITICAL: If the "User instructions" below forbid fixing this type of bug (e.g. "only fix syntax" but this is a logic/test failure), YOU MUST RETURN THE ORIGINAL FILE CONTENT UNCHANGED. THIS INSTRUCTION OVERRIDES ALL OTHERS.
-- Fix ONLY the specific bug described above
-- Do NOT change anything unrelated to the bug
+- CRITICAL: If the "User instructions" below forbid fixing this type of bug (e.g. "only fix syntax" but this is a logic/test failure), AND do not request other changes, return the original file content unchanged.
+- If "User instructions" are provided, PRIORTIZE them over the specific bug report. You may fix the bug OR apply the user's requested changes.
+- { "Fix ONLY the specific bug described above" if not custom_prompt else "Follow the User instructions to modify the code" }
+- Do NOT change anything unrelated to the bug (unless User instructions say otherwise)
 - Return ONLY the complete fixed file content — no explanations, no markdown fences
 - The fix must make the failing test(s) pass (UNLESS forbidden by User Instructions)
 
@@ -306,6 +318,7 @@ def _generate_fix_for_failure(
     local_repo_path: str,
     fix_history: dict,          # {file_rel: last_fixed_content}
     custom_prompt: str | None = None,
+    memory_context: str | None = None,
 ) -> dict:
     """
     Generate the AI fix for a single failure.
@@ -371,6 +384,7 @@ def _generate_fix_for_failure(
             context=ctx,
             previous_attempt=previous,
             custom_prompt=custom_prompt,
+            memory_context=memory_context,
         )
         fixed_content = _strip_code_fences(fixed_content)
 
@@ -535,6 +549,7 @@ def run(state: "AgentState") -> "AgentState":
     # We carry this across iterations via state if present
     fix_history: dict = state.get("_fix_history", {})
     custom_prompt: str | None = state.get("custom_prompt")
+    memory_context: str | None = state.get("memory_context")
 
     logger.info(f"[fixer] Starting parallel fix generation for {len(failures)} failure(s) "
                 f"with up to {MAX_WORKERS} workers."
@@ -553,6 +568,7 @@ def run(state: "AgentState") -> "AgentState":
                 local_repo_path,
                 fix_history,
                 custom_prompt,
+                memory_context,
             ): idx
             for idx, failure in enumerate(failures)
         }

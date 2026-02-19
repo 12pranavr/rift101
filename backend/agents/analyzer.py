@@ -199,22 +199,70 @@ def run(state: "AgentState") -> "AgentState":
     # Single Gemini call to classify ALL test failures at once
     bug_types = classify_bugs_batch(enriched)
 
-    classified_test_failures = [
-        {
+    # Combined failures (static + vulns + tests)
+    all_failures = []
+    
+    # 9. Format failures for state
+    for f in static_failures:
+        all_failures.append({
             "file": f["file"],
-            "line_number": f.get("line_number", 0),
-            "bug_type": bug_types[i],
-            "error_message": f.get("error_message", ""),
-            "file_content": f["file_content"],
-        }
-        for i, f in enumerate(enriched)
-    ]
+            "bug_type": f.get("type", "LINTING"),
+            "line_number": f.get("line", 0),
+            "error_message": f.get("message", "Static analysis issue"),
+            "file_content": "" # Filler, will be read by fixer if needed
+        })
 
-    # Merge: static analysis + vuln findings first, then test failures
-    # This ensures structural/security issues are fixed before re-running tests
-    all_failures = static_failures + vuln_findings + classified_test_failures
+    for f in vuln_findings:
+        all_failures.append({
+            "file": f["file"],
+            "bug_type": "VULNERABILITY",
+            "line_number": f.get("line", 0),
+            "error_message": f"Vulnerable dependency: {f.get('package')} {f.get('version')}",
+            "package": f.get("package"),
+            "safe_version": f.get("safe_version"),
+            "cve_id": f.get("id"),
+        })
 
+    for i, f in enumerate(enriched):
+        all_failures.append({
+            "file": f["file"],
+            "bug_type": bug_types[i] if i < len(bug_types) else "LOGIC",
+            "line_number": 0, # Sandbox often doesn't give line numbers
+            "error_message": f.get("error_message", "Test failure"),
+            "file_content": f.get("file_content", "")
+        })
+
+    # --- SKILL INJECTION ---
+    # If users want to run a skill (custom_prompt) but we found NO bugs, 
+    # we must create a "synthetic" failure so 'fixer' runs and applies the skill.
+    skills_active = state.get("custom_prompt")
+    if skills_active and not all_failures:
+        logger.info("[analyzer] No bugs found, but Skill is active. Injecting synthetic failure target.")
+        entry_file = _find_entry_point(local_path, detected_languages)
+        if entry_file:
+            all_failures.append({
+                "file": entry_file,
+                "bug_type": "SKILL_EXECUTION",
+                "line_number": 1,
+                "error_message": "Skill execution requested on entry file.",
+                "file_content": "" 
+            })
+
+    state["failures"] = all_failures
     state["branch_name"] = branch_name
     state["local_repo_path"] = local_path
-    state["failures"] = all_failures
+
     return state
+
+def _find_entry_point(repo_path: str, languages: list) -> str | None:
+    """Find a reasonable entry file to target for general skill execution."""
+    candidates = ["main.py", "app.py", "index.js", "App.jsx", "App.js", "package.json", "requirements.txt", "README.md"]
+    for c in candidates:
+        if os.path.exists(os.path.join(repo_path, c)):
+            return c
+    # Fallback: first file found
+    for root, _, files in os.walk(repo_path):
+        for f in files:
+            if not f.startswith("."):
+                return os.path.relpath(os.path.join(root, f), repo_path).replace("\\", "/")
+    return None

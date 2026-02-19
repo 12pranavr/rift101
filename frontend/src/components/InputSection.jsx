@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import axios from 'axios'
 import useAgentStore from '../store/agentStore'
 import SkillsManager, { TagBadge, loadSkills } from './SkillsManager'
+import { getRepoMemory, formatMemoryContext } from '../utils/memory'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -21,7 +22,17 @@ export default function InputSection() {
     const [advOpen, setAdvOpen] = useState(false)
     const [skillsOpen, setSkillsOpen] = useState(false)
     const [skills, setSkills] = useState(loadSkills)
+    const [memory, setMemory] = useState(null)
+    const [useMemory, setUseMemory] = useState(false)
     const isRunning = status === 'running'
+
+    // Check for existing memory when URL changes
+    useEffect(() => {
+        const mem = getRepoMemory(repoUrl.trim())
+        setMemory(mem)
+        // Auto-enable if memory exists? User requested off by default.
+        setUseMemory(false)
+    }, [repoUrl])
 
     const handleRun = async () => {
         if (!repoUrl.trim() || !teamName.trim() || !leaderName.trim()) {
@@ -45,6 +56,9 @@ export default function InputSection() {
                 ? activeSkill.instructions
                 : (customPrompt.trim() || null)
 
+            // Memory context
+            const memoryContext = (memory && useMemory) ? formatMemoryContext(memory) : null
+
             const res = await axios.post(`${API}/api/run-agent`, {
                 repo_url: repoUrl.trim(),
                 team_name: teamName.trim(),
@@ -52,6 +66,7 @@ export default function InputSection() {
                 custom_prompt: finalPrompt,
                 ignore_rules: parsedRules,
                 schedule: schedulePayload,
+                memory_context: memoryContext,
             })
 
             if (res.data.status === 'scheduled') {
@@ -138,6 +153,63 @@ export default function InputSection() {
                         disabled={isRunning}
                         type="url"
                     />
+
+                    {/* Memory Banner */}
+                    {memory && (
+                        <div className="animate-slide-up" style={{
+                            marginTop: '-0.5rem',
+                            marginBottom: '0.5rem',
+                            background: 'rgba(0, 207, 255, 0.08)',
+                            border: '1px solid rgba(0, 207, 255, 0.3)',
+                            padding: '0.6rem 0.8rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '1rem',
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span style={{ fontSize: '1.2rem' }}>🧠</span>
+                                <div>
+                                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.85rem', color: 'var(--white)', letterSpacing: '0.04em' }}>
+                                        MEMORY FOUND
+                                    </div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--gray-text)' }}>
+                                        {memory.runs.length} previous runs on this repo
+                                    </div>
+                                </div>
+                            </div>
+
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: useMemory ? 'var(--white)' : 'var(--gray-text)', transition: 'color 0.2s' }}>
+                                    USE MEMORY
+                                </span>
+                                <div style={{
+                                    width: 32, height: 18,
+                                    background: useMemory ? 'var(--blue)' : 'var(--gray-mid)',
+                                    borderRadius: 99,
+                                    position: 'relative',
+                                    transition: 'background 0.2s',
+                                }}>
+                                    <div style={{
+                                        width: 14, height: 14,
+                                        background: 'white',
+                                        borderRadius: '50%',
+                                        position: 'absolute',
+                                        top: 2,
+                                        left: useMemory ? 16 : 2,
+                                        transition: 'left 0.2s',
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                                    }} />
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={useMemory}
+                                    onChange={e => setUseMemory(e.target.checked)}
+                                    style={{ display: 'none' }}
+                                />
+                            </label>
+                        </div>
+                    )}
                     <Field
                         id="team-name"
                         label="TEAM NAME"

@@ -99,4 +99,6 @@ def push_branch(repo: git.Repo, repo_url: str, branch_name: str) -> None:
         f"+{branch_name}:{branch_name}",
         "--no-thin",
         "--force",
+        kill_after_timeout=60,
+        env={"GIT_TERMINAL_PROMPT": "0"},
     )

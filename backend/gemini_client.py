@@ -24,9 +24,10 @@ client = OpenAI(
         "HTTP-Referer": "https://github.com/rift-agent",   # optional but recommended by OR
         "X-Title": "RIFT Autonomous DevOps Agent",
     },
+    timeout=60.0,
 )
 
-MODEL = "minimax/minimax-m2.5"
+MODEL = "deepseek/deepseek-r1-0528:free"
 
 # ---------------------------------------------------------------------------
 # Retry config

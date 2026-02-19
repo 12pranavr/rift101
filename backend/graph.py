@@ -44,6 +44,7 @@ class AgentState(TypedDict):
     _fix_history: Optional[dict]           # {file_rel: last_generated_content} for retry context
     custom_prompt: Optional[str]           # user-supplied fix instructions (optional)
     ignore_rules: List[str]                # globs/prefixes to skip during analysis
+    memory_context: Optional[str]          # historical context from previous runs
 
 
 # ---------------------------------------------------------------------------
@@ -138,6 +139,7 @@ async def run_agent_graph(payload: dict, run_id: str, runs: dict) -> dict:
         "_fix_history": {},
         "custom_prompt": payload.get("custom_prompt") or None,
         "ignore_rules": payload.get("ignore_rules") or [],
+        "memory_context": payload.get("memory_context") or None,
     }
 
     # Run in thread executor so the async FastAPI loop isn't blocked

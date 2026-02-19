@@ -125,6 +125,7 @@ class RunAgentRequest(BaseModel):
     custom_prompt: str | None = None       # optional — user-supplied fix instructions
     ignore_rules: list[str] = []           # NEW — globs/prefixes to skip during analysis
     schedule: dict | None = None           # NEW — {frequency, time, day} or None
+    memory_context: str | None = None
 
 
 # ---------------------------------------------------------------------------
