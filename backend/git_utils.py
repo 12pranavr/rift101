@@ -94,11 +94,11 @@ def push_branch(repo: git.Repo, repo_url: str, branch_name: str) -> None:
     # Use low-level git command so we can pass --no-thin.
     # GitPython's high-level origin.push() doesn't expose this flag and
     # GitHub rejects thin packs with "remote unpack failed: index-pack failed".
+    # NOTE: kill_after_timeout is NOT a valid git flag — do not pass it.
     repo.git.push(
         auth_url,
         f"+{branch_name}:{branch_name}",
         "--no-thin",
         "--force",
-        kill_after_timeout=60,
         env={"GIT_TERMINAL_PROMPT": "0"},
     )

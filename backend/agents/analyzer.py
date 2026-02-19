@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 from gemini_client import ask_gemini
 from sandbox import run_tests_in_sandbox, run_all_language_tests
-from git_utils import clone_repo, create_and_checkout_branch, make_branch_name
+from git_utils import clone_repo, create_and_checkout_branch, make_branch_name, push_branch
 from language_detector import detect_languages
 from static_analysis import run_static_analysis
 import vuln_scanner
@@ -149,9 +149,15 @@ def run(state: "AgentState") -> "AgentState":
     # 1. Clone repo
     repo = clone_repo(repo_url, local_path)
 
-    # 2. Create & checkout AI_Fix branch
+    # 2. Create & checkout AI_Fix branch, then push it immediately so it
+    #    always appears on GitHub — even when no bugs are found.
     branch_name = make_branch_name(team_name, leader_name)
     create_and_checkout_branch(repo, branch_name)
+    try:
+        push_branch(repo, repo_url, branch_name)
+        logger.info(f"[analyzer] Branch '{branch_name}' pushed to GitHub.")
+    except Exception as push_err:
+        logger.warning(f"[analyzer] Initial branch push failed (will retry in fixer): {push_err}")
 
     # 3. Detect languages present in the repo
     detected_languages = detect_languages(local_path)

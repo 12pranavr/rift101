@@ -27,7 +27,7 @@ client = OpenAI(
     timeout=60.0,
 )
 
-MODEL = "deepseek/deepseek-r1-0528:free"
+MODEL = "qwen/qwen3-coder-next"
 
 # ---------------------------------------------------------------------------
 # Retry config
@@ -67,7 +67,15 @@ def ask_gemini(prompt: str) -> str:
                 temperature=0.1,
                 max_tokens=8192,
             )
-            return response.choices[0].message.content
+            msg = response.choices[0].message
+            # Some models (e.g. deepseek-r1) put the answer in
+            # `reasoning_content` and leave `content` as None.
+            content = msg.content or getattr(msg, "reasoning_content", None) or ""
+            if not content:
+                raise ValueError(
+                    f"Model returned empty content. Full choice: {response.choices[0]}"
+                )
+            return content
 
         except Exception as exc:
             err_str = str(exc)
