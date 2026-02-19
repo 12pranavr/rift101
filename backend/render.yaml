@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: devops-agent-backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: MAX_RETRIES
+        value: "5"
+      - key: SANDBOX_TIMEOUT
+        value: "60"
+      - key: SANDBOX_MODE
+        value: subprocess
