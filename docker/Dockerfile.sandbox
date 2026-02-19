@@ -1,0 +1,34 @@
+FROM python:3.11-slim
+
+# System deps: nodejs, npm, git, curl
+RUN apt-get update && apt-get install -y \
+    nodejs \
+    npm \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python test tools — includes pytest-json-report for structured output parsing
+RUN pip install --no-cache-dir \
+    pytest \
+    pytest-json-report \
+    pylint \
+    flake8 \
+    mypy \
+    black \
+    isort
+
+# Node test tools
+RUN npm install -g jest eslint typescript ts-jest @types/jest
+
+WORKDIR /sandbox
+COPY . .
+
+# Install any Python project dependencies first
+RUN if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi
+
+CMD ["python", "-m", "pytest", \
+     "--tb=short", \
+     "--json-report", \
+     "--json-report-file=test_results.json", \
+     "-v"]

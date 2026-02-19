@@ -1,0 +1,365 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+/* ── Design Tokens ─────────────────────────────────────────────────────────── */
+:root {
+  /* DARK MODE (default) */
+  --orange: #FF5500;
+  --orange-dim: #cc4400;
+  --orange-glow: rgba(255, 85, 0, 0.35);
+  --white: #F0EDE8;
+  --black: #0A0A0A;
+  --gray-dark: #111111;
+  --gray-mid: #1A1A1A;
+  --gray-border: #2A2A2A;
+  --gray-text: #888888;
+  --green: #39FF14;
+  --red: #FF2244;
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-body: 'Space Grotesk', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ── LIGHT MODE overrides ────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --orange: #E04400;
+  --orange-dim: #b83800;
+  --orange-glow: rgba(224, 68, 0, 0.2);
+  --white: #111111;
+  /* text is dark */
+  --black: #F0EDE8;
+  /* background is light */
+  --gray-dark: #E8E5E0;
+  /* panel bg */
+  --gray-mid: #DDD9D3;
+  /* nested bg */
+  --gray-border: #C8C4BE;
+  /* borders */
+  --gray-text: #666666;
+  --green: #1A8A00;
+  --red: #CC0022;
+}
+
+/* ── Base ────────────────────────────────────────────────────────────────── */
+html,
+body {
+  background-color: var(--black);
+  color: var(--white);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  box-sizing: border-box;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--black);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--orange);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--orange-dim);
+}
+
+/* ── Panel — sharp bordered card ──────────────────────────────────────────── */
+.panel {
+  background: var(--gray-dark);
+  border: 1px solid var(--gray-border);
+  padding: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--orange);
+}
+
+/* ── Panel accent corner ───────────────────────────────────────────────────── */
+.panel::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  border-top: 1px solid var(--gray-border);
+  border-left: 1px solid var(--gray-border);
+  background: var(--black);
+}
+
+/* Orange accent panel */
+.panel-accent {
+  background: var(--orange);
+  border: 1px solid var(--orange);
+  padding: 1.5rem;
+  position: relative;
+  color: var(--black);
+}
+
+/* ── Label tag (like waybill labels in the reference) ────────────────────── */
+.tag-label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--gray-text);
+  line-height: 1;
+}
+
+/* ── Display heading ─────────────────────────────────────────────────────── */
+.display-heading {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+  line-height: 0.9;
+  color: var(--white);
+}
+
+/* ── Data value ─────────────────────────────────────────────────────────── */
+.data-value {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--white);
+}
+
+/* ── Ticker line ─────────────────────────────────────────────────────────── */
+.ticker-line {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--gray-text);
+  border-top: 1px solid var(--gray-border);
+  border-bottom: 1px solid var(--gray-border);
+  padding: 0.35rem 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* ── Primary button ──────────────────────────────────────────────────────── */
+.btn-primary {
+  background: var(--orange);
+  color: var(--black);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.08em;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--white);
+  box-shadow: 0 0 20px var(--orange-glow);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Input field ─────────────────────────────────────────────────────────── */
+.input-field {
+  width: 100%;
+  background: var(--black);
+  color: var(--white);
+  border: 1px solid var(--gray-border);
+  padding: 0.65rem 1rem;
+  outline: none;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  transition: all 0.2s;
+}
+
+.input-field::placeholder {
+  color: #444;
+}
+
+.input-field:focus {
+  border-color: var(--orange);
+  box-shadow: 0 0 0 1px var(--orange);
+}
+
+.input-field:disabled {
+  opacity: 0.35;
+}
+
+/* ── Badge ───────────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ── Status dots ─────────────────────────────────────────────────────────── */
+.status-dot-pass {
+  width: 8px;
+  height: 8px;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+}
+
+.status-dot-fail {
+  width: 8px;
+  height: 8px;
+  background: var(--red);
+  box-shadow: 0 0 8px var(--red);
+}
+
+/* ── Barcode decoration ──────────────────────────────────────────────────── */
+.barcode {
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 24px;
+}
+
+.barcode-bar {
+  background: var(--gray-text);
+  width: 2px;
+}
+
+/* ── Scan line overlay ───────────────────────────────────────────────────── */
+.scan-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.04) 2px,
+      rgba(0, 0, 0, 0.04) 4px);
+  z-index: 0;
+}
+
+/* ── Animations ──────────────────────────────────────────────────────────── */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.4s ease-out;
+}
+
+.animate-pulse {
+  animation: blink 1.2s step-end infinite;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes blink {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ── Orange number glow ──────────────────────────────────────────────────── */
+.glow-orange {
+  text-shadow: 0 0 20px var(--orange-glow), 0 0 40px var(--orange-glow);
+}
+
+.glow-green {
+  text-shadow: 0 0 12px rgba(57, 255, 20, 0.6);
+}
+
+.glow-red {
+  text-shadow: 0 0 12px rgba(255, 34, 68, 0.6);
+}
+
+/* glass-card kept as alias for panel for backward compat */
+.glass-card {
+  background: var(--gray-dark);
+  border: 1px solid var(--gray-border);
+  padding: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--orange);
+}
