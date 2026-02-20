@@ -3,6 +3,7 @@
 **Live Dashboard:** [https://rift101.vercel.app](https://rift101.vercel.app)
 **Backend API:** [https://devops-agent-backend-cdhu.onrender.com](https://devops-agent-backend-cdhu.onrender.com)
 **GitHub Repo:** [https://github.com/12pranavr/rift101](https://github.com/12pranavr/rift101)
+**LinkedIn Demo Video:** [Watch on LinkedIn](https://www.linkedin.com/posts/pranav-raghavan-a0326730a_rift2026-ai-devops-activity-7430431623462002688-oU6Q?utm_source=share&utm_medium=member_desktop&rcm=ACoAAE60UuMBoIUkz_5PDqewdIpSLGkJgevCCFg)
 
 ---
 
